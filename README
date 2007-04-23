@@ -1,0 +1,92 @@
+Hard Disk Idle Spin-Down Utility
+==============================================================================
+
+hd-idle is a utility program for spinning-down external disks after a period
+of idle time. Since most external IDE disk enclosures don't support setting
+the IDE idle timer, a program like hd-idle is required to spin down idle
+disks automatically.
+
+A word of caution: hard disks don't like spinning-up too often. Laptop disks
+are more robust in this respect than desktop disks but if you set your disks
+to spin down after a few seconds you may damage the disk over time due to the
+stress the spin-up causes on the spindle motor and bearings. It seems that
+manufacturers recommend a minimum idle time of 3-5 minutes, the default in
+hd-idle is 10 minutes.
+
+Please note that hd-idle can spin down any disk accessible via the SCSI
+layer (USB, IEEE1394, ...) but it will NOT work with real SCSI disks because
+they don't spin up automatically. Thus it's not called scsi-idle and I don't
+recommend using it on a real SCSI system unless you have a kernel patch that
+automatically starts the SCSI disks after receiving a sense buffer indicating
+the disk has been stopped. Without such a patch, real SCSI disks won't start
+again and you can as well pull the plug.
+
+You have been warned...
+
+The latest version of hd-idle can be found on SourceForge:
+
+  http://hd-idle.sf.net
+
+hd-idle is not public domain software. It's copyrighted by myself,
+Christian Mueller, according to the terms of the GNU General Public
+License (GPL). Please see the file LICENSE for additional information.
+
+Copyright (c) Christian Mueller 2007
+
+==============================================================================
+
+Installation
+------------
+
+The compile process is rather simple, thus there's no automake or configure
+script at this point, just a makefile for Linux. Since hd-idle is using the
+Linux generic SCSI layer, it requires the include files scsi/sg.h and
+scsi/scsi.h which should come with libc6-dev (at least on Debian they do).
+
+* In order to compile the program, type "make".
+
+* In order to install the program into /usr/local/sbin, type "make install"
+
+* In order to install the program on a Debian system into /usr/sbin,
+  including scripts to automatically start hd-idle at system boot time,
+  type "make install-debian". Once completed, please run
+  "update-rc.d hd-idle defaults" and check /etc/default/hd-idle for
+  configuration information. The default settings will *not* start
+  hd-idle automatically.
+
+Running hd-idle
+---------------
+
+In order to run hd-idle, type "hd-idle". This will start hd-idle with the
+default options, causing all SCSI hard disks to spin down after 10 minutes
+of inactivity.
+
+On a Debian system, after editing /etc/default/hd-idle and enabling it,
+use "/etc/init.d/hd-idle start" to run hd-idle.
+
+Please note that hd-idle uses /proc/diskstats to read disk statistics. If
+this file is not present, hd-idle won't work.
+
+Command line options:
+ -i <idle_time>          Idle time in seconds.
+ -l <logfile>            Name of logfile (written only after a disk has spun
+                         up). Please note that this option might cause the
+                         disk which holds the logfile to spin up just because
+                         another disk had some activity. This option should
+                         not be used on systems with more than one disk
+                         except for tuning purposes. On single-disk systems,
+                         this option should not cause any additional spinups.
+
+Miscellaneous options:
+ -t <disk>               Spin-down the specfified disk immediately and exit.
+ -d                      Debug mode. This will prevent hd-idle from
+                         becoming a daemon and print debugging info to
+                         stdout/stderr
+ -h                      Print usage information.
+
+Stopping hd-idle
+----------------
+
+Use "killall hd-idle" to stop hd-idle. On a Debian system, use
+"/etc/init.d/hd-idle stop".
+
