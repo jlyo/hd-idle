@@ -58,8 +58,8 @@ Running hd-idle
 ---------------
 
 In order to run hd-idle, type "hd-idle". This will start hd-idle with the
-default options, causing all SCSI hard disks to spin down after 10 minutes
-of inactivity.
+default options, causing all SCSI (read: USB, Firewire, SCIS, ...) hard disks
+to spin down after 10 minutes of inactivity.
 
 On a Debian system, after editing /etc/default/hd-idle and enabling it,
 use "/etc/init.d/hd-idle start" to run hd-idle.
