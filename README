@@ -76,7 +76,7 @@ Command line options:
                          disks which are not named otherwise by using this
                          parameter.
  -i <idle_time>          Idle time in seconds for the currently named disk(s)
-                         (-a active) or for all disks.
+                         (-a <name>) or for all disks.
  -l <logfile>            Name of logfile (written only after a disk has spun
                          up). Please note that this option might cause the
                          disk which holds the logfile to spin up just because
