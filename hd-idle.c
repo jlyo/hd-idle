@@ -45,6 +45,21 @@
  * ---------------
  *
  * $Log: hd-idle.c,v $
+ * Revision 1.3  2009/11/18 20:53:17  cjmueller
+ * Features
+ * - New parameter "-a" to allow selecting idle timeouts for individual disks;
+ *   compatibility to previous releases is maintained by having an implicit
+ *   default which matches all SCSI disks
+ *
+ * Bugs
+ * - Changed comparison operator for idle periods from '>' to '>=' to prevent
+ *   adding one polling interval to idle time
+ * - Changed sleep time before calling sync after updating the log file to 1s
+ *   (from 3s) to accumulate fewer dirty blocks before synching. It's still
+ *   a compromize but the log file is for debugging purposes, anyway. A test
+ *   with fsync() was unsuccessful because the next bdflush-initiated sync
+ *   still caused spin-ups.
+ *
  * Revision 1.2  2007/04/23 22:14:27  cjmueller
  * Bug fixes
  * - Comment changes; no functionality changes...
@@ -70,12 +85,21 @@
 #include <scsi/scsi.h>
 
 #define STAT_FILE "/proc/diskstats"
+#define DEFAULT_IDLE_TIME 600
+
 #define dprintf if (debug) printf
 
 /* typedefs and structures */
+typedef struct IDLE_TIME {
+  struct IDLE_TIME  *next;
+  char              *name;
+  int                idle_time;
+} IDLE_TIME;
+
 typedef struct DISKSTATS {
   struct DISKSTATS  *next;
   char               name[50];
+  int                idle_time;
   time_t             last_io;
   time_t             spindown;
   time_t             spinup;
@@ -91,6 +115,7 @@ static void        spindown_disk   (const char *name);
 static void        log_spinup      (DISKSTATS *ds);
 
 /* global/static variables */
+IDLE_TIME *it_root;
 DISKSTATS *ds_root;
 char *logfile = "/dev/null";
 int debug;
@@ -98,13 +123,24 @@ int debug;
 /* main function */
 int main(int argc, char *argv[])
 {
+  IDLE_TIME *it;
   int have_logfile = 0;
-  int idle_time = 600;
+  int min_idle_time;
   int sleep_time;
   int opt;
 
+  /* create default idle-time parameter entry */
+  if ((it = malloc(sizeof(*it))) == NULL) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+  it->next = NULL;
+  it->name = NULL;
+  it->idle_time = DEFAULT_IDLE_TIME;
+  it_root = it;
+
   /* process command line options */
-  while ((opt = getopt(argc, argv, "t:i:l:dh")) != -1) {
+  while ((opt = getopt(argc, argv, "t:a:i:l:dh")) != -1) {
     switch (opt) {
 
     case 't':
@@ -112,8 +148,21 @@ int main(int argc, char *argv[])
       spindown_disk(optarg);
       return(0);
 
+    case 'a':
+      /* add a new set of idle-time parameters for this particular disk */
+      if ((it = malloc(sizeof(*it))) == NULL) {
+        fprintf(stderr, "out of memory\n");
+        return(2);
+      }
+      it->name = optarg;
+      it->idle_time = DEFAULT_IDLE_TIME;
+      it->next = it_root;
+      it_root = it;
+      break;
+
     case 'i':
-      idle_time = atoi(optarg);
+      /* set idle-time parameters for current (or default) disk */
+      it->idle_time = atoi(optarg);
       break;
 
     case 'l':
@@ -126,7 +175,7 @@ int main(int argc, char *argv[])
       break;
 
     case 'h':
-      printf("usage: hd-idle [-t <disk>] [-i <idle_time>] [-l <logfile>] [-d] [-h]\n");
+      printf("usage: hd-idle [-t <disk>] [-a <name>] [-i <idle_time>] [-l <logfile>] [-d] [-h]\n");
       return(0);
 
     case ':':
@@ -139,8 +188,14 @@ int main(int argc, char *argv[])
     }
   }
 
-  /* set sleep interval */
-  if ((sleep_time = idle_time / 10) == 0) {
+  /* set sleep time to 1/10th of the shortest idle time */
+  min_idle_time = 1 << 30;
+  for (it = it_root; it != NULL; it = it->next) {
+    if (it->idle_time != 0 && it->idle_time < min_idle_time) {
+      min_idle_time = it->idle_time;
+    }
+  }
+  if ((sleep_time = min_idle_time / 10) == 0) {
     sleep_time = 1;
   }
 
@@ -183,19 +238,34 @@ int main(int argc, char *argv[])
 
         if (ds == NULL) {
           /* new disk; just add it to the linked list */
-          ds = malloc(sizeof(*ds));
+          if ((ds = malloc(sizeof(*ds))) == NULL) {
+            fprintf(stderr, "out of memory\n");
+            return(2);
+          }
           memcpy(ds, &tmp, sizeof(*ds));
-          ds->last_io = time(NULL);
+          ds->last_io = now;
           ds->spinup = ds->last_io;
           ds->next = ds_root;
           ds_root = ds;
 
+          /* find idle time for this disk (falling-back to default; default means
+           * 'it->name == NULL' and this entry will always be the last due to the
+           * way this single-linked list is built when parsing command line
+           * arguments)
+           */
+          for (it = it_root; it != NULL; it = it->next) {
+            if (it->name == NULL || strstr(ds->name, it->name) != NULL) {
+              ds->idle_time = it->idle_time;
+              break;
+            }
+          }
+
         } else if (ds->reads == tmp.reads && ds->writes == tmp.writes) {
           if (!ds->spun_down) {
             /* no activity on this disk and still running */
-            if (now - ds->last_io > idle_time) {
+            if (ds->idle_time != 0 && now - ds->last_io >= ds->idle_time) {
               spindown_disk(ds->name);
-              ds->spindown = time(NULL);
+              ds->spindown = now;
               ds->spun_down = 1;
             }
           }
@@ -207,11 +277,11 @@ int main(int argc, char *argv[])
             if (have_logfile) {
               log_spinup(ds);
             }
-            ds->spinup = time(NULL);
+            ds->spinup = now;
           }
           ds->reads = tmp.reads;
           ds->writes = tmp.writes;
-          ds->last_io = time(NULL);
+          ds->last_io = now;
           ds->spun_down = 0;
         }
       }
@@ -346,11 +416,9 @@ static void log_spinup(DISKSTATS *ds)
 
     /* Sync to make sure writing to the logfile won't cause another
      * spinup in 30 seconds (or whatever bdflush uses as flush interval).
-     * Since there's already some I/O which caused the spin-up and we don't
-     * want to cause even more I/O, wait some time before doing this.
      */
     fclose(fp);
-    sleep(3);
+    sleep(1);
     sync();
   }
 }
