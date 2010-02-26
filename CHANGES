@@ -1,3 +1,20 @@
+Version 1.01
+------------
+
+Features
+- The parameter "-a" now also supports symlinks for disk names. Thus, disks
+  can be specified using something like /dev/disk/by-uuid/... Use "-d" to
+  verify that the resulting disk name is what you want.
+  
+  Please note that disk names are resolved to device nodes at startup. Also,
+  since many entries in /dev/disk/by-xxx are actually partitions, partition
+  numbers are automatically removed from the resulting device node.
+
+Bugs
+- Not really a bug, but the disk name comparison used strstr which is a bit
+  useless because only disks starting with "sd" and a single letter after
+  that are currently considered. Replaced the comparison with strcmp()
+
 Version 1.00
 ------------
 

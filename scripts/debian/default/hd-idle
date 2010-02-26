@@ -5,11 +5,12 @@ START_HD_IDLE=false
 
 # hd-idle command line options
 # Options are:
-#  -a                      Set (partial) device name of disks for subsequent
-#                          idle-time parameters (-i). This parameter is optional
-#                          in the sense that there's a default entry for all
-#                          disks which are not named otherwise by using this
-#                          parameter.
+#  -a <name>               Set device name of disks for subsequent idle-time
+#                          parameters (-i). This parameter is optional in the
+#                          sense that there's a default entry for all disks
+#                          which are not named otherwise by using this
+#                          parameter. This can also be a symlink
+#                          (e.g. /dev/disk/by-uuid/...)
 #  -i <idle_time>          Idle time in seconds.
 #  -l <logfile>            Name of logfile (written only after a disk has spun
 #                          up). Please note that this option might cause the

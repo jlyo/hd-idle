@@ -45,6 +45,24 @@
  * ---------------
  *
  * $Log: hd-idle.c,v $
+ * Revision 1.4  2010/02/26 14:03:44  cjmueller
+ * Version 1.01
+ * ------------
+ *
+ * Features
+ * - The parameter "-a" now also supports symlinks for disk names. Thus, disks
+ *   can be specified using something like /dev/disk/by-uuid/... Use "-d" to
+ *   verify that the resulting disk name is what you want.
+ *
+ *   Please note that disk names are resolved to device nodes at startup. Also,
+ *   since many entries in /dev/disk/by-xxx are actually partitions, partition
+ *   numbers are automatically removed from the resulting device node.
+ *
+ * Bugs
+ * - Not really a bug, but the disk name comparison used strstr which is a bit
+ *   useless because only disks starting with "sd" and a single letter after
+ *   that are currently considered. Replaced the comparison with strcmp()
+ *
  * Revision 1.3  2009/11/18 20:53:17  cjmueller
  * Features
  * - New parameter "-a" to allow selecting idle timeouts for individual disks;
@@ -113,6 +131,7 @@ static void        daemonize       (void);
 static DISKSTATS  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
 static void        log_spinup      (DISKSTATS *ds);
+static char       *disk_name       (char *name);
 
 /* global/static variables */
 IDLE_TIME *it_root;
@@ -154,7 +173,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "out of memory\n");
         return(2);
       }
-      it->name = optarg;
+      it->name = disk_name(optarg);
       it->idle_time = DEFAULT_IDLE_TIME;
       it->next = it_root;
       it_root = it;
@@ -254,7 +273,7 @@ int main(int argc, char *argv[])
            * arguments)
            */
           for (it = it_root; it != NULL; it = it->next) {
-            if (it->name == NULL || strstr(ds->name, it->name) != NULL) {
+            if (it->name == NULL || !strcmp(ds->name, it->name)) {
               ds->idle_time = it->idle_time;
               break;
             }
@@ -421,4 +440,62 @@ static void log_spinup(DISKSTATS *ds)
     sleep(1);
     sync();
   }
+}
+
+/* Resolve disk names specified as "/dev/disk/by-xxx" or some other symlink.
+ * Please note that this function is only called during command line parsing
+ * and hd-idle per se does not support dynamic disk additions or removals at
+ * runtime.
+ *
+ * This might change in the future but would require some fiddling to avoid
+ * needless overhead -- after all, this was designed to run on tiny embedded
+ * devices, too.
+ */
+static char *disk_name(char *path)
+{
+  ssize_t len;
+  char buf[256];
+  char *s;
+
+  if (*path != '/') {
+    /* just a disk name without /dev prefix */
+    return(path);
+  }
+
+  if ((len = readlink(path, buf, sizeof(buf) - 1)) <= 0) {
+    if (errno != EINVAL) {
+      /* couldn't resolve disk name */
+      return(path);
+    }
+
+    /* 'path' is not a symlink */
+    strncpy(buf, path, sizeof(buf) - 1);
+    buf[sizeof(buf)-1] = '\0';
+    len = strlen(buf);
+  }
+  buf[len] = '\0';
+
+  /* remove partition numbers, if any */
+  for (s = buf + strlen(buf) - 1; s >= buf && isdigit(*s); s--) {
+    *s = '\0';
+  }
+
+  /* Extract basename of the disk in /dev. Note that this assumes that the
+   * final target of the symlink (if any) resolves to /dev/sd*
+   */
+  if ((s = strrchr(buf, '/')) != NULL) {
+    s++;
+  } else {
+    s = buf;
+  }
+
+  if ((s = strdup(s)) == NULL) {
+    fprintf(stderr, "out of memory");
+    exit(2);
+  }
+
+  if (debug) {
+    printf("using %s for %s\n", s, path);
+  }
+  return(s);
 }

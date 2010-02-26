@@ -70,11 +70,12 @@ this file is not present, hd-idle won't work.
 In case of problems, use the debug option (-d) tp get further information.
 
 Command line options:
- -a <name>               Set (partial) device name of disks for subsequent
-                         idle-time parameters (-i). This parameter is optional
-                         in the sense that there's a default entry for all
-                         disks which are not named otherwise by using this
-                         parameter.
+ -a <name>               Set device name of disks for subsequent idle-time
+                         parameters (-i). This parameter is optional in the
+                         sense that there's a default entry for all disks
+                         which are not named otherwise by using this
+                         parameter. This can also be a symlink
+                         (e.g. /dev/disk/by-uuid/...)
  -i <idle_time>          Idle time in seconds for the currently named disk(s)
                          (-a <name>) or for all disks.
  -l <logfile>            Name of logfile (written only after a disk has spun
