@@ -45,6 +45,15 @@
  * ---------------
  *
  * $Log: hd-idle.c,v $
+ * Revision 1.5  2010/11/06 15:30:04  cjmueller
+ * Version 1.02
+ * ------------
+ *
+ * Features
+ * - In case the SCSI stop unit command fails with "check condition", print a
+ *   hex dump of the sense buffer to stderr. This is supposed to help
+ *   debugging.
+ *
  * Revision 1.4  2010/02/26 14:03:44  cjmueller
  * Version 1.01
  * ------------
@@ -94,6 +103,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdarg.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -132,6 +142,8 @@ static DISKSTATS  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
 static void        log_spinup      (DISKSTATS *ds);
 static char       *disk_name       (char *name);
+static void        phex            (const void *p, int len,
+                                    const char *fmt, ...);
 
 /* global/static variables */
 IDLE_TIME *it_root;
@@ -402,6 +414,9 @@ static void spindown_disk(const char *name)
   } else if (io_hdr.masked_status != 0) {
     fprintf(stderr, "error: SCSI command failed with status 0x%02x\n",
             io_hdr.masked_status);
+    if (io_hdr.masked_status == CHECK_CONDITION) {
+      phex(sense_buf, io_hdr.sb_len_wr, "sense buffer:\n");
+    }
   }
 
   close(fd);
@@ -499,3 +514,42 @@ static char *disk_name(char *path)
   }
   return(s);
 }
+
+/* print hex dump to stderr (e.g. sense buffers) */
+static void phex(const void *p, int len, const char *fmt, ...)
+{
+  va_list va;
+  const unsigned char *buf = p;
+  int pos = 0;
+  int i;
+
+  /* print header */
+  va_start(va, fmt);
+  vfprintf(stderr, fmt, va);
+
+  /* print hex block */
+  while (len > 0) {
+    fprintf(stderr, "%08x ", pos);
+
+    /* print hex block */
+    for (i = 0; i < 16; i++) {
+      if (i < len) {
+        fprintf(stderr, "%c%02x", ((i == 8) ? '-' : ' '), buf[i]);
+      } else {
+        fprintf(stderr, "   ");
+      }
+    }
+
+    /* print ASCII block */
+    fprintf(stderr, "   ");
+    for (i = 0; i < ((len > 16) ? 16 : len); i++) {
+      fprintf(stderr, "%c", (buf[i] >= 32 && buf[i] < 128) ? buf[i] : '.');
+    }
+    fprintf(stderr, "\n");
+
+    pos += 16;
+    buf += 16;
+    len -= 16;
+  }
+}
+
