@@ -1,3 +1,11 @@
+Version 1.02
+------------
+
+Features
+- In case the SCSI stop unit command fails with "check condition", print a
+  hex dump of the sense buffer to stderr. This is supposed to help
+  debugging.
+
 Version 1.01
 ------------
 
