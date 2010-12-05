@@ -108,7 +108,7 @@ Regarding the parameter "-a":
     spin-down on selected disks, set the default idle time to 0.
 
     Example:
-      hd-idle -i 0 -n sda -i 300 -n sdb -i 1200
+      hd-idle -i 0 -a sda -i 300 -a sdb -i 1200
 
     This example sets the default idle time to 0 (meaning hd-idle will never
     try to spin down a disk), then sets explicit idle times for disks which

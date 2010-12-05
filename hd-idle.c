@@ -45,6 +45,15 @@
  * ---------------
  *
  * $Log: hd-idle.c,v $
+ * Revision 1.6  2010/12/05 19:25:51  cjmueller
+ * Version 1.03
+ * ------------
+ *
+ * Bugs
+ * - Use %u in dprintf() when reporting number of reads and writes (the
+ *   corresponding variable is an unsigned int).
+ * - Fix example in README where the parameter "-a" was written as "-n".
+ *
  * Revision 1.5  2010/11/06 15:30:04  cjmueller
  * Version 1.02
  * ------------
@@ -262,7 +271,7 @@ int main(int argc, char *argv[])
           continue;
         }
 
-        dprintf("probing %s: reads: %d, writes: %d\n", tmp.name, tmp.reads, tmp.writes);
+        dprintf("probing %s: reads: %u, writes: %u\n", tmp.name, tmp.reads, tmp.writes);
 
         /* get previous statistics for this disk */
         ds = get_diskstats(tmp.name);
