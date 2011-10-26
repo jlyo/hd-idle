@@ -4,17 +4,22 @@
 #
 ###############################################################################
 
-TARGET_DIR = /usr/local/sbin
-SCRIPT_DIR = /etc
+ifdef DESTDIR
+# dh_auto_install (Debian) sets this variable
+  TARGET_DIR = $(DESTDIR)/usr
+else
+  TARGET_DIR ?= /usr/local
+endif
 
 LIB_DIRS   = 
 
 INC_DIRS   = 
 
-CC_DEBUG   = -g
-CFLAGS     = $(CC_DEBUG) $(INC_DIRS) -Wall
-CC         = gcc
+CC        ?= gcc
+CFLAGS    += $(INC_DIRS) -Wall
+
 LD         = $(CC)
+LDFLAGS   += $(LIB_DIRS)
 
 ###############################################################################
 #
@@ -32,23 +37,18 @@ OBJS    = $(SRCS:.c=.o)
 
 all: $(TARGET)
 
+distclean: clean
+
 clean:
 	rm -f $(OBJS) $(TARGET)
 
 install: $(TARGET)
-	install -g root -o root $(TARGET) $(TARGET_DIR)
-
-install-debian:
-	install -g root -o root $(TARGET) /usr/sbin
-	install -g root -o root scripts/debian/init.d/hd-idle /etc/init.d
-	install -g root -o root scripts/debian/default/hd-idle /etc/default
-	@echo
-	@echo Please run \"update-rc.d hd-idle defaults\" to start hd-idle automatically
-	@echo and check /etc/default/hd-idle for configuration information
+	install -D -g root -o root $(TARGET) $(TARGET_DIR)/sbin/$(TARGET)
+	install -D -g root -o root $(TARGET).1 $(TARGET_DIR)/share/man/man1/$(TARGET).1
 
 hd-idle.o:     hd-idle.c
 
 $(TARGET): $(OBJS)
-	$(LD) $(CC_DEBUG) -o $(TARGET) $(OBJS) $(LIB_DIRS) $(LIBS)
+	$(LD) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIB_DIRS) $(LIBS)
 
 

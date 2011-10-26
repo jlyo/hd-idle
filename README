@@ -43,16 +43,24 @@ script at this point, just a makefile for Linux. Since hd-idle is using the
 Linux generic SCSI layer, it requires the include files scsi/sg.h and
 scsi/scsi.h which should come with libc6-dev (at least on Debian they do).
 
-* In order to compile the program, type "make".
+Non-Debian Systems:
+ * In order to compile the program, type "make".
+ * In order to install the program into /usr/local/sbin, type "make install"
+   (this will also install the manpage into /usr/local/share/man/man1)
 
-* In order to install the program into /usr/local/sbin, type "make install"
+Debian Systems:
+ * Run "dpkg-buildpackage -rfakeroot"
+ * Run "dpkg -i ../hd-idle_*.deb" to install the package
 
-* In order to install the program on a Debian system into /usr/sbin,
-  including scripts to automatically start hd-idle at system boot time,
-  type "make install-debian". Once completed, please run
-  "update-rc.d hd-idle defaults" and check /etc/default/hd-idle for
-  configuration information. The default settings will *not* start
-  hd-idle automatically.
+ NOTE: The build framework has been changed to be compatible to the Debian
+       package management with the intention of making hd-idle an official
+       Debian package. Once this effort has completed, hd-idle can be
+       installed with "apt-get install hd-idle". The changes to the Debian
+       build instructions as outlined above (previous releases used "make
+       install_debian") are a side effect of this effort.
+
+ Once completed, please check /etc/default/hd-idle for configuration
+ information. The default settings will *not* start hd-idle automatically.
 
 Running hd-idle
 ---------------
@@ -70,6 +78,7 @@ this file is not present, hd-idle won't work.
 In case of problems, use the debug option (-d) tp get further information.
 
 Command line options:
+
  -a <name>               Set device name of disks for subsequent idle-time
                          parameters (-i). This parameter is optional in the
                          sense that there's a default entry for all disks

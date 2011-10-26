@@ -1,0 +1,63 @@
+hd-idle (1.04) unstable; urgency=low
+
+  * Make hd-idle's build environment compatible to Debian package management;
+    this effort is meant to allow hd-idle to become an official Debian package
+  * Man page for hd-idle
+
+ -- Christian Mueller <cm1@mumac.de>  Fri, 30 Sep 2011 22:35:12 +0200
+
+hd-idle (1.03) unstable; urgency=low
+ 
+  * Use %u in dprintf() when reporting number of reads and writes (the
+    corresponding variable is an unsigned int).
+  * Fix example in README where the parameter "-a" was written as "-n".
+
+ -- Christian Mueller <cm1@mumac.de>  Sun, 5 Dec 2010 19:25:51 +0100
+
+hd-idle (1.02) unstable; urgency=low
+
+  * In case the SCSI stop unit command fails with "check condition", print a
+    hex dump of the sense buffer to stderr. This is supposed to help
+    debugging.
+
+ -- Christian Mueller <cm1@mumac.de>  Sat, 6 Nov 2010 15:47:00 +0100
+
+hd-idle (1.01) unstable; urgency=low
+
+  * The parameter "-a" now also supports symlinks for disk names. Thus, disks
+    can be specified using something like /dev/disk/by-uuid/... Use "-d" to
+    verify that the resulting disk name is what you want.
+  
+    Please note that disk names are resolved to device nodes at startup. Also,
+    since many entries in /dev/disk/by-xxx are actually partitions, partition
+    numbers are automatically removed from the resulting device node.
+
+  * Not really a bug, but the disk name comparison used strstr which is a bit
+    useless because only disks starting with "sd" and a single letter after
+    that are currently considered. Replaced the comparison with strcmp()
+
+ -- Christian Mueller <cm1@mumac.de>  Fri, 26 Feb 2010 14:03:44 +0100
+
+hd-idle (1.00) unstable; urgency=low
+
+  * New parameter "-a" to allow selecting idle timeouts for individual disks;
+    compatibility to previous releases is maintained by having an implicit
+    default which matches all SCSI disks
+
+  * Changed comparison operator for idle periods from '>' to '>=' to prevent
+    adding one polling interval to idle time
+
+  * Changed sleep time before calling sync after updating the log file to 1s
+    (from 3s) to accumulate fewer dirty blocks before synching. It's still
+    a compromize but the log file is for debugging purposes, anyway. A test
+    with fsync() was unsuccessful because the next bdflush-initiated sync
+    still caused spin-ups.
+
+ -- Christian Mueller <cm1@mumac.de>  Wed, 18 Nov 2009 20:53:17 +0100
+
+hd-idle (0.99) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Christian Mueller <cm1@mumac.de>  Mon, 23 Apr 2007 22:03:10 +0100
+
