@@ -11,12 +11,13 @@ else
   TARGET_DIR ?= /usr/local
 endif
 
-LIB_DIRS   = 
+LIB_DIRS   =
 
-INC_DIRS   = 
+INC_DIRS   =
 
 CC        ?= gcc
-CFLAGS    += $(INC_DIRS) -Wall
+CFLAGS    += $(INC_DIRS) -D_BSD_SOURCE -Wall -Wextra -Wshadow -pedantic \
+			 -std=gnu99 -fPIC -g -O2
 
 LD         = $(CC)
 LDFLAGS   += $(LIB_DIRS)
@@ -29,7 +30,7 @@ LDFLAGS   += $(LIB_DIRS)
 
 TARGET  = hd-idle
 
-LIBS    = 
+LIBS    =
 
 SRCS    = hd-idle.c
 
@@ -51,4 +52,4 @@ hd-idle.o:     hd-idle.c
 $(TARGET): $(OBJS)
 	$(LD) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIB_DIRS) $(LIBS)
 
-
+.PHONY: all disclean clean install
