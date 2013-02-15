@@ -130,9 +130,10 @@ static const char STAT_FILE[] = "/proc/diskstats";
 
 /* typedefs and structures */
 typedef struct idle_time_t {
-  struct idle_time_t  *next;
-  char                *name;
+  struct idle_time_t   *next;
+  char                 *name;
   int                  idle_time;
+  unsigned int         name_allocd : 1;
 } idle_time_t;
 
 typedef struct disk_stats_t {
@@ -202,6 +203,7 @@ int main(int argc, char *argv[])
         _return(2);
       }
       it->name = disk_name(optarg);
+      it->name_allocd = (it->name != optarg);
       it->idle_time = DEFAULT_IDLE_TIME;
       it->next = it_root;
       it_root = it;
@@ -347,6 +349,8 @@ out:
 
     for (it = it_root; it != NULL; it = itnext) {
       itnext = it->next;
+      if (it->name_allocd)
+        free(it->name);
       free(it);
     }
 
