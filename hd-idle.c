@@ -113,6 +113,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <limits.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -129,29 +130,29 @@ static const char STAT_FILE[] = "/proc/diskstats";
 /* typedefs and structures */
 typedef struct idle_time_t {
   struct idle_time_t  *next;
-  char              *name;
-  int                idle_time;
+  char                *name;
+  int                  idle_time;
 } idle_time_t;
 
 typedef struct disk_stats_t {
   struct disk_stats_t  *next;
-  char               name[50];
-  int                idle_time;
-  time_t             last_io;
-  time_t             spindown;
-  time_t             spinup;
-  unsigned int       spun_down : 1;
-  unsigned int       reads;
-  unsigned int       writes;
+  char                 name[50];
+  int                  idle_time;
+  time_t               last_io;
+  time_t               spindown;
+  time_t               spinup;
+  unsigned int         reads;
+  unsigned int         writes;
+  unsigned int         spun_down : 1;
 } disk_stats_t;
 
 /* function prototypes */
-static void        daemonize       (void);
-static disk_stats_t  *get_diskstats   (disk_stats_t *ds, const char *name);
-static void        spindown_disk   (const char *name);
-static void        log_spinup      (const char *logfile, disk_stats_t *ds);
-static char       *disk_name       (char *name);
-static void        phex            (FILE *fp, const void *p, int len,
+static void         daemonize      (void);
+static disk_stats_t *get_diskstats (disk_stats_t *ds, const char *name);
+static void         spindown_disk  (const char *name);
+static void         log_spinup     (const char *logfile, disk_stats_t *ds);
+static char         *disk_name     (char *name);
+static void         phex           (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
 /* global/static variables */
 static int debug =  0;
@@ -233,7 +234,7 @@ int main(int argc, char *argv[])
   }
 
   /* set sleep time to 1/10th of the shortest idle time */
-  min_idle_time = 1 << 30;
+  min_idle_time = INT_MAX;
   for (it = it_root; it != NULL; it = it->next) {
     if (it->idle_time != 0 && it->idle_time < min_idle_time) {
       min_idle_time = it->idle_time;
@@ -561,3 +562,5 @@ static void phex(FILE *fp, const void *p, int len, const char *fmt, ...)
     len -= 16;
   }
 }
+/* vim: sw=2: ts=2: sts: et
+ */
