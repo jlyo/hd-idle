@@ -124,7 +124,7 @@
 #define STAT_FILE "/proc/diskstats"
 #define DEFAULT_IDLE_TIME 600
 
-#define dprintf if (debug) printf
+#define dprintf(...) do { if (debug) { printf(__VA_ARGS__); } } while (0)
 
 /* typedefs and structures */
 typedef struct IDLE_TIME {
@@ -518,9 +518,7 @@ static char *disk_name(char *path)
     exit(2);
   }
 
-  if (debug) {
-    printf("using %s for %s\n", s, path);
-  }
+  dprintf("using %s for %s\n", s, path);
   return(s);
 }
 
