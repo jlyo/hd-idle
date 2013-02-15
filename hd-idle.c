@@ -591,13 +591,19 @@ static void phex(FILE *fp, const void *p, int len, const char *fmt, ...)
 /* make sure this is a SCSI disk (sd[a-z]*) */
 static int is_scsi_disk(const disk_stats_t *ds)
 {
-  const char *p = ds->name;
-  if (*p++ != 's') return 0;
-  if (*p++ != 'd') return 0;
-  if (*p == '\0')  return 1;
-  for (; *p != '\0'; ++p)
-    if (!isalpha(*p) || !islower(*p)) return 0;
-  return 1;
+  char dev_name[100];
+  struct stat st;
+
+  snprintf(dev_name, sizeof(dev_name), "/dev/%s", ds->name);
+  if (stat(dev_name, &st) < 0) {
+    char buf[100];
+    snprintf(buf, sizeof(buf), "stat(%s):", dev_name);
+    perror(buf);
+    return 0;
+  }
+
+  /* SCSI disk and a whole disk (not partition) */
+  return (major(st.st_rdev) == 8) && (minor(st.st_rdev) % 16 == 0);
 }
 
 /* vim: sw=2: ts=2: sts: et
