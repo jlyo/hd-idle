@@ -147,22 +147,21 @@ typedef struct disk_stats_t {
 
 /* function prototypes */
 static void        daemonize       (void);
-static disk_stats_t  *get_diskstats   (const char *name);
+static disk_stats_t  *get_diskstats   (disk_stats_t *ds, const char *name);
 static void        spindown_disk   (const char *name);
-static void        log_spinup      (disk_stats_t *ds);
+static void        log_spinup      (const char *logfile, disk_stats_t *ds);
 static char       *disk_name       (char *name);
 static void        phex            (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
-
 /* global/static variables */
-static idle_time_t *it_root;
-static disk_stats_t *ds_root;
-static char *logfile = "/dev/null";
 static int debug;
 
 /* main function */
 int main(int argc, char *argv[])
 {
+  idle_time_t *it_root;
+  disk_stats_t *ds_root = NULL;
+  const char *logfile = "/dev/null";
   idle_time_t *it;
   int have_logfile = 0;
   int min_idle_time;
@@ -274,7 +273,7 @@ int main(int argc, char *argv[])
         dprintf("probing %s: reads: %u, writes: %u\n", tmp.name, tmp.reads, tmp.writes);
 
         /* get previous statistics for this disk */
-        ds = get_diskstats(tmp.name);
+        ds = get_diskstats(ds_root, tmp.name);
 
         if (ds == NULL) {
           /* new disk; just add it to the linked list */
@@ -315,7 +314,7 @@ int main(int argc, char *argv[])
           if (ds->spun_down) {
             /* disk was spun down, thus it has just spun up */
             if (have_logfile) {
-              log_spinup(ds);
+              log_spinup(logfile, ds);
             }
             ds->spinup = now;
           }
@@ -372,11 +371,9 @@ static void daemonize(void)
 }
 
 /* get DISKSTATS entry by name of disk */
-static disk_stats_t *get_diskstats(const char *name)
+static disk_stats_t *get_diskstats(disk_stats_t *ds, const char *name)
 {
-  disk_stats_t *ds;
-
-  for (ds = ds_root; ds != NULL; ds = ds->next) {
+  for (; ds != NULL; ds = ds->next) {
     if (!strcmp(ds->name, name)) {
       return(ds);
     }
@@ -432,7 +429,7 @@ static void spindown_disk(const char *name)
 }
 
 /* write a spin-up event message to the log file */
-static void log_spinup(disk_stats_t *ds)
+static void log_spinup(const char *logfile, disk_stats_t *ds)
 {
   FILE *fp;
 
