@@ -114,6 +114,7 @@
 #include <unistd.h>
 #include <stdarg.h>
 #include <limits.h>
+#include <signal.h>
 
 #include <fcntl.h>
 #include <sys/types.h>
@@ -160,6 +161,13 @@ static int          is_scsi_disk   (const disk_stats_t *ds);
 
 /* global/static variables */
 static int debug =  0;
+static volatile int break_loop = 0;
+
+static void sighandler(int signo)
+{
+  (void) signo;
+  break_loop = 1;
+}
 
 /* main function */
 int main(int argc, char *argv[])
@@ -175,6 +183,7 @@ int main(int argc, char *argv[])
   int opt;
   int foreground = 0;
   int rc = 0;
+  struct sigaction newact, oldact;
 
   /* create default idle-time parameter entry */
   if ((it = malloc(sizeof(*it))) == NULL) {
@@ -183,6 +192,7 @@ int main(int argc, char *argv[])
   }
   it->next = NULL;
   it->name = NULL;
+  it->name_allocd = 0;
   it->idle_time = DEFAULT_IDLE_TIME;
   it_root = it;
 
@@ -260,11 +270,28 @@ int main(int argc, char *argv[])
     daemonize();
   }
 
+  newact.sa_handler = sighandler;
+  sigemptyset(&newact.sa_mask);
+  newact.sa_flags = 0;
+
+  sigaction(SIGINT, NULL, &oldact);
+  if (oldact.sa_handler != SIG_IGN)
+    sigaction(SIGINT, &newact, NULL);
+  sigaction(SIGHUP, NULL, &oldact);
+  if (oldact.sa_handler != SIG_IGN)
+    sigaction(SIGHUP, &newact, NULL);
+  sigaction(SIGTERM, NULL, &oldact);
+  if (oldact.sa_handler != SIG_IGN)
+    sigaction(SIGTERM, &newact, NULL);
+
   /* main loop: probe for idle disks and stop them */
   for (;;) {
     disk_stats_t tmp;
     FILE *fp;
     char buf[200];
+
+    if (break_loop)
+      break;
 
     if ((fp = fopen(STAT_FILE, "r")) == NULL) {
       perror(STAT_FILE);
@@ -338,6 +365,9 @@ int main(int argc, char *argv[])
     }
 
     fclose(fp);
+
+    if (break_loop)
+      break;
     sleep(sleep_time);
   }
 
