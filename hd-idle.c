@@ -121,8 +121,8 @@
 #include <scsi/sg.h>
 #include <scsi/scsi.h>
 
-#define STAT_FILE "/proc/diskstats"
 #define DEFAULT_IDLE_TIME 600
+static const char STAT_FILE[] = "/proc/diskstats";
 
 #define dprintf(...) do { if (debug) { printf(__VA_ARGS__); } } while (0)
 
@@ -155,10 +155,10 @@ static void        phex            (const void *p, int len,
                                     const char *fmt, ...);
 
 /* global/static variables */
-IDLE_TIME *it_root;
-DISKSTATS *ds_root;
-char *logfile = "/dev/null";
-int debug;
+static IDLE_TIME *it_root;
+static DISKSTATS *ds_root;
+static char *logfile = "/dev/null";
+static int debug;
 
 /* main function */
 int main(int argc, char *argv[])
@@ -559,4 +559,3 @@ static void phex(const void *p, int len, const char *fmt, ...)
     len -= 16;
   }
 }
-
