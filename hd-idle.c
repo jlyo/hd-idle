@@ -127,14 +127,14 @@ static const char STAT_FILE[] = "/proc/diskstats";
 #define dprintf(...) do { if (debug) { printf(__VA_ARGS__); } } while (0)
 
 /* typedefs and structures */
-typedef struct IDLE_TIME {
-  struct IDLE_TIME  *next;
+typedef struct idle_time_t {
+  struct idle_time_t  *next;
   char              *name;
   int                idle_time;
-} IDLE_TIME;
+} idle_time_t;
 
-typedef struct DISKSTATS {
-  struct DISKSTATS  *next;
+typedef struct disk_stats_t {
+  struct disk_stats_t  *next;
   char               name[50];
   int                idle_time;
   time_t             last_io;
@@ -143,27 +143,27 @@ typedef struct DISKSTATS {
   unsigned int       spun_down : 1;
   unsigned int       reads;
   unsigned int       writes;
-} DISKSTATS;
+} disk_stats_t;
 
 /* function prototypes */
 static void        daemonize       (void);
-static DISKSTATS  *get_diskstats   (const char *name);
+static disk_stats_t  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
-static void        log_spinup      (DISKSTATS *ds);
+static void        log_spinup      (disk_stats_t *ds);
 static char       *disk_name       (char *name);
 static void        phex            (const void *p, int len,
                                     const char *fmt, ...);
 
 /* global/static variables */
-static IDLE_TIME *it_root;
-static DISKSTATS *ds_root;
+static idle_time_t *it_root;
+static disk_stats_t *ds_root;
 static char *logfile = "/dev/null";
 static int debug;
 
 /* main function */
 int main(int argc, char *argv[])
 {
-  IDLE_TIME *it;
+  idle_time_t *it;
   int have_logfile = 0;
   int min_idle_time;
   int sleep_time;
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
 
   /* main loop: probe for idle disks and stop them */
   for (;;) {
-    DISKSTATS tmp;
+    disk_stats_t tmp;
     FILE *fp;
     char buf[200];
 
@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
     while (fgets(buf, sizeof(buf), fp) != NULL) {
       if (sscanf(buf, "%*d %*d %s %*u %*u %u %*u %*u %*u %u %*u %*u %*u %*u",
                  tmp.name, &tmp.reads, &tmp.writes) == 3) {
-        DISKSTATS *ds;
+        disk_stats_t *ds;
         time_t now = time(NULL);
 
         /* make sure this is a SCSI disk (sd[a-z]) */
@@ -372,9 +372,9 @@ static void daemonize(void)
 }
 
 /* get DISKSTATS entry by name of disk */
-static DISKSTATS *get_diskstats(const char *name)
+static disk_stats_t *get_diskstats(const char *name)
 {
-  DISKSTATS *ds;
+  disk_stats_t *ds;
 
   for (ds = ds_root; ds != NULL; ds = ds->next) {
     if (!strcmp(ds->name, name)) {
@@ -432,7 +432,7 @@ static void spindown_disk(const char *name)
 }
 
 /* write a spin-up event message to the log file */
-static void log_spinup(DISKSTATS *ds)
+static void log_spinup(disk_stats_t *ds)
 {
   FILE *fp;
 
