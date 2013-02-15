@@ -126,6 +126,7 @@
 static const char STAT_FILE[] = "/proc/diskstats";
 
 #define dprintf(...) do { if (debug) { printf(__VA_ARGS__); } } while (0)
+#define _return(i) do { rc = i; goto out; } while (0)
 
 /* typedefs and structures */
 typedef struct idle_time_t {
@@ -155,6 +156,7 @@ static char         *disk_name     (char *name);
 static void         phex           (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
 static int          is_scsi_disk   (const disk_stats_t *ds);
+
 /* global/static variables */
 static int debug =  0;
 
@@ -165,11 +167,13 @@ int main(int argc, char *argv[])
   disk_stats_t *ds_root = NULL;
   const char *logfile = "/dev/null";
   idle_time_t *it;
+  disk_stats_t *ds;
   int have_logfile = 0;
   int min_idle_time;
   int sleep_time;
   int opt;
   int foreground = 0;
+  int rc = 0;
 
   /* create default idle-time parameter entry */
   if ((it = malloc(sizeof(*it))) == NULL) {
@@ -188,13 +192,14 @@ int main(int argc, char *argv[])
     case 't':
       /* just spin-down the specified disk and exit */
       spindown_disk(optarg);
-      return(0);
+      _return(0);
+      break;
 
     case 'a':
       /* add a new set of idle-time parameters for this particular disk */
       if ((it = malloc(sizeof(*it))) == NULL) {
         fprintf(stderr, "out of memory\n");
-        return(2);
+        _return(2);
       }
       it->name = disk_name(optarg);
       it->idle_time = DEFAULT_IDLE_TIME;
@@ -222,15 +227,18 @@ int main(int argc, char *argv[])
 
     case 'h':
       printf("usage: hd-idle [-t <disk>] [-a <name>] [-i <idle_time>] [-l <logfile>] [-f] [-d] [-h]\n");
-      return(0);
+      _return(0);
+      break;
 
     case ':':
       fprintf(stderr, "error: option -%c requires an argument\n", optopt);
-      return(1);
+      _return(1);
+      break;
 
     case '?':
       fprintf(stderr, "error: unknown option -%c\n", optopt);
-      return(1);
+      _return(1);
+      break;
     }
   }
 
@@ -258,7 +266,7 @@ int main(int argc, char *argv[])
 
     if ((fp = fopen(STAT_FILE, "r")) == NULL) {
       perror(STAT_FILE);
-      return(2);
+      _return(2);
     }
 
     memset(&tmp, 0x00, sizeof(tmp));
@@ -266,7 +274,6 @@ int main(int argc, char *argv[])
     while (fgets(buf, sizeof(buf), fp) != NULL) {
       if (sscanf(buf, "%*d %*d %s %*u %*u %u %*u %*u %*u %u %*u %*u %*u %*u",
                  tmp.name, &tmp.reads, &tmp.writes) == 3) {
-        disk_stats_t *ds;
         time_t now = time(NULL);
 
         if (!is_scsi_disk(&tmp))
@@ -281,7 +288,7 @@ int main(int argc, char *argv[])
           /* new disk; just add it to the linked list */
           if ((ds = malloc(sizeof(*ds))) == NULL) {
             fprintf(stderr, "out of memory\n");
-            return(2);
+            _return(2);
           }
           memcpy(ds, &tmp, sizeof(*ds));
           ds->last_io = now;
@@ -332,7 +339,24 @@ int main(int argc, char *argv[])
     sleep(sleep_time);
   }
 
-  return(0);
+out:
+  {
+    /* To avoid use-after-free */
+    disk_stats_t *dsnext;
+    idle_time_t  *itnext;
+
+    for (it = it_root; it != NULL; it = itnext) {
+      itnext = it->next;
+      free(it);
+    }
+
+    for (ds = ds_root; ds != NULL; ds = dsnext) {
+      dsnext = ds->next;
+      free(ds);
+    }
+  }
+
+  return(rc);
 }
 
 /* become a daemon */
@@ -460,8 +484,13 @@ static void log_spinup(const char *logfile, disk_stats_t *ds)
      * spinup in 30 seconds (or whatever bdflush uses as flush interval).
      */
     fclose(fp);
-    sleep(1);
-    sync();
+
+    /* Don't be slow shutting down */
+    if (!break_loop) {
+      sleep(1);
+      if (!break_loop)
+        sync();
+    }
   }
 }
 
