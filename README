@@ -97,6 +97,8 @@ Command line options:
 
 Miscellaneous options:
  -t <disk>               Spin-down the specfified disk immediately and exit.
+ -f                      Foreground mode. This will prevent hd-idle from
+                         becoming a daemon.
  -d                      Debug mode. This will prevent hd-idle from
                          becoming a daemon and print debugging info to
                          stdout/stderr

@@ -154,7 +154,7 @@ static char       *disk_name       (char *name);
 static void        phex            (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
 /* global/static variables */
-static int debug;
+static int debug =  0;
 
 /* main function */
 int main(int argc, char *argv[])
@@ -167,6 +167,7 @@ int main(int argc, char *argv[])
   int min_idle_time;
   int sleep_time;
   int opt;
+  int foreground = 0;
 
   /* create default idle-time parameter entry */
   if ((it = malloc(sizeof(*it))) == NULL) {
@@ -179,7 +180,7 @@ int main(int argc, char *argv[])
   it_root = it;
 
   /* process command line options */
-  while ((opt = getopt(argc, argv, "t:a:i:l:dh")) != -1) {
+  while ((opt = getopt(argc, argv, "t:a:i:l:fdh")) != -1) {
     switch (opt) {
 
     case 't':
@@ -209,12 +210,16 @@ int main(int argc, char *argv[])
       have_logfile = 1;
       break;
 
+    case 'f':
+      foreground += 1;
+      break;
+
     case 'd':
-      debug = 1;
+      debug += 1;
       break;
 
     case 'h':
-      printf("usage: hd-idle [-t <disk>] [-a <name>] [-i <idle_time>] [-l <logfile>] [-d] [-h]\n");
+      printf("usage: hd-idle [-t <disk>] [-a <name>] [-i <idle_time>] [-l <logfile>] [-f] [-d] [-h]\n");
       return(0);
 
     case ':':
@@ -239,7 +244,7 @@ int main(int argc, char *argv[])
   }
 
   /* daemonize unless we're running in debug mode */
-  if (!debug) {
+  if (!debug && !foreground) {
     daemonize();
   }
 
