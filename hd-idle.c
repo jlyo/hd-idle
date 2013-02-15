@@ -151,7 +151,7 @@ static disk_stats_t  *get_diskstats   (const char *name);
 static void        spindown_disk   (const char *name);
 static void        log_spinup      (disk_stats_t *ds);
 static char       *disk_name       (char *name);
-static void        phex            (const void *p, int len,
+static void        phex            (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
 
 /* global/static variables */
@@ -424,7 +424,7 @@ static void spindown_disk(const char *name)
     fprintf(stderr, "error: SCSI command failed with status 0x%02x\n",
             io_hdr.masked_status);
     if (io_hdr.masked_status == CHECK_CONDITION) {
-      phex(sense_buf, io_hdr.sb_len_wr, "sense buffer:\n");
+      phex(stderr, sense_buf, io_hdr.sb_len_wr, "sense buffer:\n");
     }
   }
 
@@ -523,7 +523,7 @@ static char *disk_name(char *path)
 }
 
 /* print hex dump to stderr (e.g. sense buffers) */
-static void phex(const void *p, int len, const char *fmt, ...)
+static void phex(FILE *fp, const void *p, int len, const char *fmt, ...)
 {
   va_list va;
   const unsigned char *buf = p;
@@ -532,27 +532,27 @@ static void phex(const void *p, int len, const char *fmt, ...)
 
   /* print header */
   va_start(va, fmt);
-  vfprintf(stderr, fmt, va);
+  vfprintf(fp, fmt, va);
 
   /* print hex block */
   while (len > 0) {
-    fprintf(stderr, "%08x ", pos);
+    fprintf(fp, "%08x ", pos);
 
     /* print hex block */
     for (i = 0; i < 16; i++) {
       if (i < len) {
-        fprintf(stderr, "%c%02x", ((i == 8) ? '-' : ' '), buf[i]);
+        fprintf(fp, "%c%02x", ((i == 8) ? '-' : ' '), buf[i]);
       } else {
-        fprintf(stderr, "   ");
+        fprintf(fp, "   ");
       }
     }
 
     /* print ASCII block */
-    fprintf(stderr, "   ");
+    fprintf(fp, "   ");
     for (i = 0; i < ((len > 16) ? 16 : len); i++) {
-      fprintf(stderr, "%c", (buf[i] >= 32 && buf[i] < 128) ? buf[i] : '.');
+      fprintf(fp, "%c", (buf[i] >= 32 && buf[i] < 128) ? buf[i] : '.');
     }
-    fprintf(stderr, "\n");
+    fprintf(fp, "\n");
 
     pos += 16;
     buf += 16;
