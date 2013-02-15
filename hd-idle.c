@@ -154,6 +154,7 @@ static void         log_spinup     (const char *logfile, disk_stats_t *ds);
 static char         *disk_name     (char *name);
 static void         phex           (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
+static int          is_scsi_disk   (const disk_stats_t *ds);
 /* global/static variables */
 static int debug =  0;
 
@@ -268,13 +269,8 @@ int main(int argc, char *argv[])
         disk_stats_t *ds;
         time_t now = time(NULL);
 
-        /* make sure this is a SCSI disk (sd[a-z]) */
-        if (tmp.name[0] != 's' ||
-            tmp.name[1] != 'd' ||
-            !isalpha(tmp.name[2]) ||
-            tmp.name[3] != '\0') {
+        if (!is_scsi_disk(&tmp))
           continue;
-        }
 
         dprintf("probing %s: reads: %u, writes: %u\n", tmp.name, tmp.reads, tmp.writes);
 
@@ -562,5 +558,18 @@ static void phex(FILE *fp, const void *p, int len, const char *fmt, ...)
     len -= 16;
   }
 }
+
+/* make sure this is a SCSI disk (sd[a-z]*) */
+static int is_scsi_disk(const disk_stats_t *ds)
+{
+  const char *p = ds->name;
+  if (*p++ != 's') return 0;
+  if (*p++ != 'd') return 0;
+  if (*p == '\0')  return 1;
+  for (; *p != '\0'; ++p)
+    if (!isalpha(*p) || !islower(*p)) return 0;
+  return 1;
+}
+
 /* vim: sw=2: ts=2: sts: et
  */
