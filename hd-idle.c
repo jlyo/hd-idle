@@ -186,6 +186,10 @@ int main(int argc, char *argv[])
   int rc = 0;
   struct sigaction newact, oldact;
 
+  /* Force line buffering for stdout, unbuffered for stderr */
+  setvbuf(stdout, NULL, _IOLBF, 0);
+  setvbuf(stderr, NULL, _IONBF, 0);
+
   /* create default idle-time parameter entry */
   if ((it = malloc(sizeof(*it))) == NULL) {
     fprintf(stderr, "out of memory\n");
@@ -495,6 +499,7 @@ static void log_spinup(const char *logfile, disk_stats_t *ds)
   FILE *fp;
 
   if ((fp = fopen(logfile, "a")) != NULL) {
+    setvbuf(fp, NULL, _IOLBF, 0); /* line buffer */
     /* Print statistics to logfile
      *
      * Note: This doesn't work too well if there are multiple disks
