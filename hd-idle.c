@@ -112,6 +112,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <stdarg.h>
 #include <limits.h>
 #include <signal.h>
