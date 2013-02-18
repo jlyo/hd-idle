@@ -157,7 +157,7 @@ static void         log_spinup     (const char *logfile, disk_stats_t *ds);
 static char         *disk_name     (char *name);
 static void         phex           (FILE *fp, const void *p, int len,
                                     const char *fmt, ...);
-static int          is_scsi_disk   (const disk_stats_t *ds);
+static int          is_scsi_disk   (const char *ds);
 
 /* global/static variables */
 static int debug =  0;
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
                  tmp.name, &tmp.reads, &tmp.writes) == 3) {
         time_t now = time(NULL);
 
-        if (!is_scsi_disk(&tmp))
+        if (!is_scsi_disk(tmp.name))
           continue;
 
         dprintf("probing %s: reads: %u, writes: %u\n", tmp.name, tmp.reads, tmp.writes);
@@ -539,8 +539,7 @@ static void log_spinup(const char *logfile, disk_stats_t *ds)
  */
 static char *disk_name(char *path)
 {
-  ssize_t len;
-  char buf[256];
+  char buf[PATH_MAX + 1];
   char *s;
 
   if (*path != '/') {
@@ -548,18 +547,12 @@ static char *disk_name(char *path)
     return(path);
   }
 
-  if ((len = readlink(path, buf, sizeof(buf) - 1)) <= 0) {
-    if (errno != EINVAL) {
-      /* couldn't resolve disk name */
-      return(path);
-    }
-
-    /* 'path' is not a symlink */
-    strncpy(buf, path, sizeof(buf) - 1);
-    buf[sizeof(buf)-1] = '\0';
-    len = strlen(buf);
+  if (realpath(path, buf) == NULL) {
+    char errmsg[PATH_MAX + 20];
+    snprintf(errmsg, sizeof(errmsg), "realpath(%s)", path);
+    perror(errmsg);
+    return(path);
   }
-  buf[len] = '\0';
 
   /* remove partition numbers, if any */
   for (s = buf + strlen(buf) - 1; s >= buf && isdigit(*s); s--) {
@@ -623,12 +616,12 @@ static void phex(FILE *fp, const void *p, int len, const char *fmt, ...)
 }
 
 /* make sure this is a SCSI disk (sd[a-z]*) */
-static int is_scsi_disk(const disk_stats_t *ds)
+static int is_scsi_disk(const char *name)
 {
   char dev_name[100];
   struct stat st;
 
-  snprintf(dev_name, sizeof(dev_name), "/dev/%s", ds->name);
+  snprintf(dev_name, sizeof(dev_name), "/dev/%s", name);
   if (stat(dev_name, &st) < 0) {
     char buf[100];
     snprintf(buf, sizeof(buf), "stat(%s):", dev_name);
