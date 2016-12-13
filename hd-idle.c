@@ -46,7 +46,7 @@
  *
  * $Log: hd-idle.c,v $
  * Revision 1.7  2016/12/12 21:29:00  dmcelectrico
- * Version 1.04
+ * Version 1.05
  * ------------
  *
  * Features
@@ -157,11 +157,28 @@ typedef struct disk_stats_t {
   unsigned int         spun_down : 1;
 } disk_stats_t;
 
+enum {
+  ATA_OP_STANDBYNOW1 = 0xe0,
+  ATA_OP_STANDBYNOW2 = 0x94,
+  ATA_USING_LBA = (1 << 6),
+  ATA_STAT_DRQ = (1 << 3),
+  ATA_STAT_ERR = (1 << 0),
+};
+
+enum {
+  SG_ATA_16 = 0x85,
+  SG_ATA_16_LEN = 16,
+  SG_ATA_PROTO_NON_DATA = (3 << 1)
+};
+
+enum {
+  SG_CDB2_CHECK_COND      = (1 << 5)
+};
+
 /* function prototypes */
 static void         daemonize      (void);
 static disk_stats_t *get_diskstats (disk_stats_t *ds, const char *name);
-static void         spindown_disk  (const char *name);
-static int          spindown_sgio  (const char* name);
+static int          spindown_disk  (const char *name);
 static void         log_spinup     (const char *logfile, disk_stats_t *ds);
 static char         *disk_name     (char *name);
 static void         phex           (FILE *fp, const void *p, int len,
@@ -215,8 +232,7 @@ int main(int argc, char *argv[])
 
     case 't':
       /* just spin-down the specified disk and exit */
-      //spindown_disk(optarg);
-      spindown_sgio(optarg);
+      spindown_disk(optarg);
       _return(0);
       break;
 
@@ -354,8 +370,7 @@ int main(int argc, char *argv[])
           if (!ds->spun_down) {
             /* no activity on this disk and still running */
             if (ds->idle_time != 0 && now - ds->last_io >= ds->idle_time) {
-              //spindown_disk(ds->name);
-              spindown_sgio(ds->name);
+              spindown_disk(ds->name);
               ds->spindown = now;
               ds->spun_down = 1;
             }
@@ -458,49 +473,78 @@ static disk_stats_t *get_diskstats(disk_stats_t *ds, const char *name)
 }
 
 /* spin-down a disk */
-static void spindown_disk(const char *name)
+static int sgio_send(int fd, unsigned char cmd, unsigned char *rv)
 {
-  struct sg_io_hdr io_hdr;
-  unsigned char sense_buf[255];
-  char dev_name[100];
+  unsigned char cdb[SG_ATA_16_LEN];
+  unsigned char sb[32];
+  unsigned char *desc;
+  unsigned char status, error;
+  sg_io_hdr_t io_hdr;
+
+  memset(&cdb, 0, sizeof(cdb));
+  memset(&sb,     0, sizeof(sb));
+  memset(&io_hdr, 0, sizeof(io_hdr));
+
+  cdb[ 0] = SG_ATA_16;
+  cdb[ 1] = SG_ATA_PROTO_NON_DATA;
+  cdb[ 2] = SG_CDB2_CHECK_COND;
+  cdb[13] = ATA_USING_LBA;
+  cdb[14] = cmd;
+
+  io_hdr.cmd_len = SG_ATA_16_LEN;
+  io_hdr.interface_id     = 'S';
+  io_hdr.mx_sb_len        = sizeof(sb);
+  io_hdr.dxfer_direction  = SG_DXFER_NONE;
+  io_hdr.dxfer_len        = 0;
+  io_hdr.dxferp           = NULL;
+  io_hdr.cmdp             = cdb;
+  io_hdr.sbp              = sb;
+  io_hdr.pack_id          = 0;
+  io_hdr.timeout          = 5000; /* msecs */
+
+  if (ioctl(fd, SG_IO, &io_hdr) == -1) {
+    dprintf(" > SG_IO ioctl() failed for cmd %u, %s",
+          cmd, strerror(errno));
+    return -1;
+  }
+
+  desc = sb + 8;
+  status = desc[13];
+  error = desc[ 3];
+  if (rv)
+    *rv = desc[ 5];
+
+  if (status & (ATA_STAT_ERR | ATA_STAT_DRQ)) {
+    dprintf(" > SG_IO cmd %u failed, status %u, error %u",
+          cmd, status, error);
+    errno = EIO;
+    return -1;
+  }
+
+  return 0;
+}
+
+
+int spindown_disk(const char* name)
+{
   int fd;
+  char dev_name[100];
 
-  dprintf("spindown: %s\n", name);
-
-  /* fabricate SCSI IO request */
-  memset(&io_hdr, 0x00, sizeof(io_hdr));
-  io_hdr.interface_id = 'S';
-  io_hdr.dxfer_direction = SG_DXFER_NONE;
-
-  /* SCSI stop unit command */
-  io_hdr.cmdp = (unsigned char *) "\x1b\x00\x00\x00\x00\x00";
-
-  io_hdr.cmd_len = 6;
-  io_hdr.sbp = sense_buf;
-  io_hdr.mx_sb_len = (unsigned char) sizeof(sense_buf);
-
+  dprintf(" > spindown: %s\n", name);
   /* open disk device (kernel 2.4 will probably need "sg" names here) */
   snprintf(dev_name, sizeof(dev_name), "/dev/%s", name);
   if ((fd = open(dev_name, O_RDONLY)) < 0) {
     perror(dev_name);
-    return;
+    return -1;
   }
 
-  /* execute SCSI request */
-  if (ioctl(fd, SG_IO, &io_hdr) < 0) {
-    char buf[100];
-    snprintf(buf, sizeof(buf), "ioctl on %s:", name);
-    perror(buf);
-
-  } else if (io_hdr.masked_status != 0) {
-    fprintf(stderr, "error: SCSI command failed with status 0x%02x\n",
-            io_hdr.masked_status);
-    if (io_hdr.masked_status == CHECK_CONDITION) {
-      phex(stderr, sense_buf, io_hdr.sb_len_wr, "sense buffer:\n");
-    }
+  if (sgio_send(fd, ATA_OP_STANDBYNOW1, NULL) &&
+      sgio_send(fd, ATA_OP_STANDBYNOW2, NULL)){
+    perror(" > Error sending SGIO command\n");
+    return -1;
   }
-
-  close(fd);
+  dprintf(" > SGIO command succesfully sent\n");
+  return 0;
 }
 
 /* write a spin-up event message to the log file */
@@ -647,102 +691,6 @@ static int is_scsi_disk(const char *name)
 
   /* SCSI disk and a whole disk (not partition) */
   return (major(st.st_rdev) == 8) && (minor(st.st_rdev) % 16 == 0);
-}
-
-
-enum {
-  ATA_OP_STANDBYNOW1 = 0xe0,
-  ATA_OP_STANDBYNOW2 = 0x94,
-  ATA_USING_LBA = (1 << 6),
-  ATA_STAT_DRQ = (1 << 3),
-  ATA_STAT_ERR = (1 << 0),
-};
-
-enum {
-  SG_ATA_16 = 0x85,
-  SG_ATA_16_LEN = 16,
-  SG_ATA_PROTO_NON_DATA = (3 << 1)
-};
-
-enum {
-  SG_CDB2_CHECK_COND      = (1 << 5)
-};
-
-
-static int sgio_send(int fd, unsigned char cmd, unsigned char *rv)
-{
-  unsigned char cdb[SG_ATA_16_LEN];
-  unsigned char sb[32];
-  unsigned char *desc;
-  unsigned char status, error;
-  sg_io_hdr_t io_hdr;
-
-  memset(&cdb, 0, sizeof(cdb));
-  memset(&sb,     0, sizeof(sb));
-  memset(&io_hdr, 0, sizeof(io_hdr));
-
-  cdb[ 0] = SG_ATA_16;
-  cdb[ 1] = SG_ATA_PROTO_NON_DATA;
-  cdb[ 2] = SG_CDB2_CHECK_COND;
-  cdb[13] = ATA_USING_LBA;
-  cdb[14] = cmd;
-
-  io_hdr.cmd_len = SG_ATA_16_LEN;
-  io_hdr.interface_id     = 'S';
-  io_hdr.mx_sb_len        = sizeof(sb);
-  io_hdr.dxfer_direction  = SG_DXFER_NONE;
-  io_hdr.dxfer_len        = 0;
-  io_hdr.dxferp           = NULL;
-  io_hdr.cmdp             = cdb;
-  io_hdr.sbp              = sb;
-  io_hdr.pack_id          = 0;
-  io_hdr.timeout          = 5000; /* msecs */
-
-  if (ioctl(fd, SG_IO, &io_hdr) == -1) {
-    dprintf(" > SG_IO ioctl() failed for cmd %u, %s",
-          cmd, strerror(errno));
-    return -1;
-  }
-
-  desc = sb + 8;
-  status = desc[13];
-  error = desc[ 3];
-  if (rv)
-    *rv = desc[ 5];
-
-  if (status & (ATA_STAT_ERR | ATA_STAT_DRQ)) {
-    dprintf(" > SG_IO cmd %u failed, status %u, error %u",
-          cmd, status, error);
-    errno = EIO;
-    return -1;
-  }
-
-  return 0;
-}
-
-
-int spindown_sgio(const char* name)
-{
-  int fd;
-  char dev_name[100];
-
-  dprintf(" > spindown: %s\n", name);
-  /* open disk device (kernel 2.4 will probably need "sg" names here) */
-  snprintf(dev_name, sizeof(dev_name), "/dev/%s", name);
-  if ((fd = open(dev_name, O_RDONLY)) < 0) {
-    perror(dev_name);
-    return -1;
-  }
-
-  if (sgio_send(fd, ATA_OP_STANDBYNOW1, NULL) &&
-      sgio_send(fd, ATA_OP_STANDBYNOW2, NULL)){
-    perror(" > Error sending SGIO command\n");
-    return -1;
-  }
-  dprintf(" > SGIO command succesfully sent\n");
-  return 0;
-  
-
 }
 
 /* vim: sw=2: ts=2: sts: et
