@@ -181,8 +181,6 @@ static disk_stats_t *get_diskstats (disk_stats_t *ds, const char *name);
 static int          spindown_disk  (const char *name);
 static void         log_spinup     (const char *logfile, disk_stats_t *ds);
 static char         *disk_name     (char *name);
-static void         phex           (FILE *fp, const void *p, int len,
-                                    const char *fmt, ...);
 static int          is_scsi_disk   (const char *ds);
 
 /* global/static variables */
@@ -635,44 +633,6 @@ static char *disk_name(char *path)
 
   dprintf("using %s for %s\n", s, path);
   return(s);
-}
-
-/* print hex dump to stderr (e.g. sense buffers) */
-static void phex(FILE *fp, const void *p, int len, const char *fmt, ...)
-{
-  va_list va;
-  const unsigned char *buf = p;
-  int pos = 0;
-  int i;
-
-  /* print header */
-  va_start(va, fmt);
-  vfprintf(fp, fmt, va);
-
-  /* print hex block */
-  while (len > 0) {
-    fprintf(fp, "%08x ", pos);
-
-    /* print hex block */
-    for (i = 0; i < 16; i++) {
-      if (i < len) {
-        fprintf(fp, "%c%02x", ((i == 8) ? '-' : ' '), buf[i]);
-      } else {
-        fprintf(fp, "   ");
-      }
-    }
-
-    /* print ASCII block */
-    fprintf(fp, "   ");
-    for (i = 0; i < ((len > 16) ? 16 : len); i++) {
-      fprintf(fp, "%c", (buf[i] >= 32 && buf[i] < 128) ? buf[i] : '.');
-    }
-    fprintf(fp, "\n");
-
-    pos += 16;
-    buf += 16;
-    len -= 16;
-  }
 }
 
 /* make sure this is a SCSI disk (sd[a-z]*) */
