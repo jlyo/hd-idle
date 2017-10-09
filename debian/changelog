@@ -1,3 +1,9 @@
+hd-idle (1.05) unstable; urgency=low
+  
+  * Upgraded spindown sgio command to support some USB devices.
+
+  -- dmcallejo <dmcelectrico@gmail.com>  Tue, 12 Dec 2016 21:29:00 +0100
+
 hd-idle (1.04) unstable; urgency=low
 
   * Make hd-idle's build environment compatible to Debian package management;
